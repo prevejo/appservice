@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name="tb_informativo", schema="comunidade")
-@SequenceGenerator(name="seq_tb_informativo", sequenceName="comunidade.seq_tb_informativo", schema="comunidade")
+@SequenceGenerator(name="seq_tb_informativo", sequenceName="comunidade.seq_tb_informativo", schema="comunidade", allocationSize = 1)
 public class Informativo {
 
     @Id

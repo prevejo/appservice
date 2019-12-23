@@ -101,6 +101,11 @@
 			<version>21.1</version>
 		</dependency>
 		<dependency>
+			<groupId>org.geotools</groupId>
+			<artifactId>gt-epsg-wkt</artifactId>
+			<version>21.1</version>
+		</dependency>
+		<dependency>
 			<groupId>javax.measure</groupId>
 			<artifactId>unit-api</artifactId>
 			<version>1.0</version>

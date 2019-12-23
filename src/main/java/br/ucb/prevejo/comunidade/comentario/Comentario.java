@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Table(name="tb_comentario", schema="comunidade")
-@SequenceGenerator(name="seq_tb_comentario", sequenceName="comunidade.seq_tb_comentario", schema="comunidade")
+@SequenceGenerator(name="seq_tb_comentario", sequenceName="comunidade.seq_tb_comentario", schema="comunidade", allocationSize = 1)
 public class Comentario {
 
     @Id

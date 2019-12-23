@@ -12,7 +12,7 @@ import java.util.*;
 
 public class VeiculoHistorico {
     private static final Duration MAX_PAST_TIME = Duration.ofHours(3);
-    private static final int MAX_DISTANCE = 1500;
+    private static final int MAX_DISTANCE = 700;
 
     private InstanteOperacao current;
     private SortedSet<Instante> instantes = new TreeSet<>();

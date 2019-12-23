@@ -1,21 +1,22 @@
 package br.ucb.prevejo.shared.util;
 
 import br.ucb.prevejo.previsao.estimativa.model.AtDistance;
-import br.ucb.prevejo.previsao.instanteoperacao.Instante;
-import br.ucb.prevejo.shared.intefaces.LocatedEntity;
+import br.ucb.prevejo.shared.intefaces.Segment;
 import br.ucb.prevejo.shared.model.Feature;
 import br.ucb.prevejo.shared.model.FeatureCollection;
 import br.ucb.prevejo.shared.model.Pair;
-import br.ucb.prevejo.transporte.percurso.Percurso;
+import br.ucb.prevejo.shared.model.PointSegment;
 import org.geotools.geojson.geom.GeometryJSON;
 import org.geotools.geometry.jts.JTS;
+import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
-import org.locationtech.jts.algorithm.distance.DiscreteHausdorffDistance;
+import org.locationtech.jts.algorithm.Distance;
 import org.locationtech.jts.geom.*;
+import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.opengis.referencing.operation.MathTransform;
 import org.opengis.referencing.operation.TransformException;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -24,12 +25,15 @@ import java.util.stream.Stream;
 public class Geo {
 
     public static final CoordinateReferenceSystem CRS_GOOGLE = DefaultGeographicCRS.WGS84;
+    public static final CoordinateReferenceSystem CRS_BRAZIL = buildCrs(31983);
+
     private static final GeometryJSON GEOJSON_BUILDER = new GeometryJSON(5);
 
     private static final GeometryFactory FACTORY_WGS84 = new GeometryFactory(new PrecisionModel((int)Math.pow(10, 8)), 4326);
 
     private static final Map<Integer, CoordinateReferenceSystem> SRID_MAP = new HashMap<Integer, CoordinateReferenceSystem>() {{
         put(4326, CRS_GOOGLE);
+        put(31983, CRS_BRAZIL);
     }};
 
     public static Optional<Double> distance(Iterator<Point> points) {
@@ -90,6 +94,18 @@ public class Geo {
         }
     }
 
+    public static double distanceBetween(Point point, LineString line) {
+        return distanceBetweenPointAndLine(point.getCoordinate(), line.getCoordinates());
+    }
+
+    public static double distanceBetweenPointAndLine(Coordinate point, Coordinate[] lineCoords) {
+        return Distance.pointToSegmentString(point, lineCoords);
+    }
+
+    public static double distanceBetweenPointAndLine(Coordinate point, Coordinate lineStart, Coordinate lineEnd) {
+        return Distance.pointToSegment(point, lineStart, lineEnd);
+    }
+
     public static String toGeoJson(Geometry geometry) {
         return GEOJSON_BUILDER.toString(geometry);
     }
@@ -99,7 +115,11 @@ public class Geo {
     }
 
     public static LineString toLineString(List<Point> points) {
-        return toLineString(points.stream().map(p -> p.getCoordinate()).toArray(Coordinate[]::new), FACTORY_WGS84);
+        return toLineString(points, FACTORY_WGS84);
+    }
+
+    public static LineString toLineString(List<Point> points, GeometryFactory factory) {
+        return toLineString(points.stream().map(p -> p.getCoordinate()).toArray(Coordinate[]::new), factory);
     }
 
     public static LineString toLineStringCoords(List<Coordinate> points) {
@@ -159,6 +179,10 @@ public class Geo {
         return FACTORY_WGS84.createPoint(coordinate);
     }
 
+    public static Point makePoint(Coordinate coordinate, GeometryFactory factory) {
+        return factory.createPoint(coordinate);
+    }
+
     public static Point makePointXY(double x, double y) {
         return FACTORY_WGS84.createPoint(new Coordinate(x, y));
     }
@@ -167,22 +191,24 @@ public class Geo {
         return makePoint(Double.valueOf(lat.replace(",", ".")), Double.valueOf(lng.replace(",", ".")));
     }
 
+    public static Coordinate pointAt(double fraction, Coordinate lineStart, Coordinate lineEnd) {
+        return new LineSegment(lineStart, lineEnd).pointAlong(fraction);
+    }
 
-    public static List<Point> fillSequence(List<Point> points, int distance) {
-        List<Pair<Point, Point>> list = br.ucb.prevejo.shared.util.Collections.pairIteratorOf(points.iterator()).toSequencePairList();
+    public static Coordinate perpendicularPoint(Coordinate point, Coordinate lineStart, Coordinate lineEnd) {
+        double x1=lineStart.x, y1=lineStart.y, x2=lineEnd.x, y2=lineEnd.y, x3=point.x, y3=point.y;
+        double px = x2-x1, py = y2-y1, dAB = px*px + py*py;
+        double u = ((x3 - x1) * px + (y3 - y1) * py) / dAB;
+        double x = x1 + u * px, y = y1 + u * py;
+        return new Coordinate(x, y);
+    }
 
-        Stream<Point> firstPoint = list.stream()
-                .findFirst()
-                .map(pair -> Stream.of(pair.getKey()))
-                .orElse(Stream.empty());
+    public static double closestPointFractionAt(Coordinate point, Coordinate lineStart, Coordinate lineEnd) {
+        return new LineSegment(lineStart, lineEnd).segmentFraction(point);
+    }
 
-        Stream<Point> otherPoints = list.stream()
-                .flatMap(pair -> Stream.concat(
-                        middlePoints(pair.getKey(), pair.getValue(), distance),
-                        Arrays.asList(pair.getValue()).stream()
-                ));
-
-        return Stream.concat(firstPoint, otherPoints).collect(Collectors.toList());
+    public static Coordinate closestPoint(Coordinate point, Coordinate lineStart, Coordinate lineEnd) {
+        return new LineSegment(lineStart, lineEnd).closestPoint(point);
     }
 
     private static Stream<Point> middlePoints(Point first, Point second, int distance) {
@@ -195,33 +221,66 @@ public class Geo {
         return middleOnes;
     }
 
-    public static List<Point> maxDistance(Iterator<Point> iterator, int maxDistance) {
-        return maxDistanceCoords(iterator, maxDistance, p -> p.getCoordinate());
+    public static List<Coordinate> maxDistanceWithCut(List<Coordinate> coords, int maxDistance, GeometryFactory factory, CoordinateReferenceSystem crs) {
+        return maxDistanceWithCut(
+                coords.iterator(),
+                maxDistance,
+                p -> p,
+                coord -> factory.createPoint(coord).getCoordinate(),
+                crs
+        );
     }
 
-    public static List<Coordinate> maxDistanceCoords(Iterator<Coordinate> iterator, int maxDistance) {
-        return maxDistanceCoords(iterator, maxDistance, c -> c);
+    public static List<Point> maxDistanceWithCut(List<Point> points, int maxDistance) {
+        if (points.isEmpty()) {
+            return points;
+        }
+
+        Point first = points.get(0);
+
+        return maxDistanceWithCut(
+                points.iterator(),
+                maxDistance,
+                p -> p.getCoordinate(),
+                coord -> first.getFactory().createPoint(coord),
+                Geo.findCoordinateReferenceSystem(first.getSRID()).get()
+        );
     }
 
-    public static <T> List<T> maxDistanceCoords(Iterator<T> iterator, int maxDistance, Function<T, Coordinate> coordinateGetter) {
+    public static <T> List<T> maxDistanceWithCut(
+            Iterator<T> iterator,
+            int maxDistance,
+            Function<T, Coordinate> toCoord,
+            Function<Coordinate, T> toObj,
+            CoordinateReferenceSystem crs) {
+
         List<T> points = new ArrayList<>();
         double totalDistance = 0;
+        T prev = null;
 
         while (iterator.hasNext()) {
             T next = iterator.next();
-            Coordinate nextCoord = coordinateGetter.apply(next);
 
-            if (!points.isEmpty()) {
-                Coordinate previous = coordinateGetter.apply(points.get(points.size() - 1));
+            if (prev != null) {
+                Coordinate prevCoord = toCoord.apply(prev);
+                Coordinate nextCoord = toCoord.apply(next);
 
-                totalDistance += distanceBetween(previous, nextCoord);
+                double distance = distanceBetween(prevCoord, nextCoord, crs);
 
-                if (totalDistance > maxDistance) {
+                if ((totalDistance + distance) > maxDistance) {
+                    if (totalDistance < maxDistance) {
+                        double remaining = maxDistance - totalDistance;
+                        double remainingFraction = (remaining * 100 / distance) / 100;
+
+                        points.add(toObj.apply(pointAt(remainingFraction, prevCoord, nextCoord)));
+                    }
                     break;
                 }
+                totalDistance += distance;
             }
 
             points.add(next);
+            prev = next;
         }
 
         return points;
@@ -297,20 +356,19 @@ public class Geo {
         );
     }
 
-    public static List<Integer> findNearOnes(List<Coordinate> coordinates, Point point, int maxDistance) {
-        List<Coordinate> coords = new ArrayList<>(coordinates);
-        SortedSet<AtDistance<Integer>> nearBag = new TreeSet<>();
+    public static <T extends Segment> List<T> findSegmentsNear(Iterator<T> segments, Point point, int maxDistance) {
+        List<T> listOfNears = new ArrayList<>();
+        SortedSet<AtDistance<T>> nearBag = new TreeSet<>();
         boolean entryFlag = false;
 
-        List<Integer> listOfNears = new ArrayList<>();
-
-        for (int i = 0; i < coords.size(); i++) {
-            double distance = Geo.distanceBetween(coords.get(i), point.getCoordinate());
+        while (segments.hasNext()) {
+            T ls = segments.next();
+            double distance = ls.distance(point);
 
             if (distance <= maxDistance) {
                 entryFlag = true;
 
-                nearBag.add(AtDistance.build(i, distance));
+                nearBag.add(AtDistance.build(ls, distance));
             } else {
                 if (entryFlag) {
                     entryFlag = false;
@@ -333,45 +391,63 @@ public class Geo {
         );
     }
 
-    public static Optional<FeatureCollection> splitLineString(LocatedEntity splitPoint, LineString lineString, int maxDistance) {
-        List<Coordinate> coords = Geo.fillSequence(Arrays.asList(lineString.getCoordinates())
-                .stream().map(c -> Geo.makePoint(c))
-                .collect(Collectors.toList()), 50)
-                .stream().map(p -> p.getCoordinate())
-                .collect(Collectors.toList());
+    public static Pair<List<Point>, List<Integer>> findPointsWithin(List<Point> points, Point point, int maxDistance) {
+        List<PointSegment> segmentos = Collections.pairIteratorOf(points.iterator()).toSequencePairList()
+                .stream().map(pair -> new PointSegment(pair.getKey(), pair.getValue())).collect(Collectors.toList());
+        List<PointSegment> nearOnes = findSegmentsNear(segmentos.iterator(), point, maxDistance);
 
-        List<Integer> listOfNears = Geo.findNearOnes(coords, splitPoint.getLocation(), maxDistance)
-                .stream().filter(index -> index < coords.size() - 1)
-                .collect(Collectors.toList());
+        List<Pair<Point, Boolean>> coordsPoints = Stream.concat(
+            segmentos.stream().findFirst()
+                    .map(seg -> Stream.concat(
+                        Stream.of(Pair.of(seg.getSegmentStart(), false)),
+                        (nearOnes.contains(seg) ? Stream.of(Pair.of(seg.middlePoint(point), true)) : Stream.empty())
+                    )).orElse(Stream.empty()),
+            segmentos.stream().skip(1).flatMap(seg -> Stream.concat(
+                    (nearOnes.contains(seg) ? Stream.of(Pair.of(seg.middlePoint(point), true)) : Stream.empty()),
+                    Stream.of(Pair.of(seg.getSegmentEnd(), false))
+        ))).collect(Collectors.toList());
 
-        if (splitPoint.getRecordPath().size() >= 2 && listOfNears.size() > 1) {
-            List<Point> pointsFromStart = Geo.fillSequence(splitPoint.getRecordPath(), 10);
-            LineString lineStrFromStart = Geo.toLineString(pointsFromStart);
-            double pathDistance = Geo.distance(splitPoint.getRecordPath().iterator()).get();
+        List<Integer> listOfNears = new ArrayList<>();
 
-            listOfNears = listOfNears.stream()
-                    .filter(pathStart -> {
-                        Iterator<Coordinate> beforePath = Collections.reserveIterator(coords.subList(0, pathStart + 1));
-                        List<Coordinate> path = Geo.maxDistanceCoords(beforePath, (int) pathDistance);
-
-                        if (path.size() < 2) {
-                            return false;
-                        }
-
-                        LineString lineStrPath = Geo.toLineStringCoords(path);
-
-                        double distanceFromStart = DiscreteHausdorffDistance.distance(lineStrPath, lineStrFromStart);
-
-                        return distanceFromStart * 1000 < 3;
-                    }).collect(Collectors.toList());
+        int index = 0;
+        for (Pair<Point, Boolean> coordPoint : coordsPoints) {
+            if (coordPoint.getValue()) {
+                listOfNears.add(index);
+            }
+            index++;
         }
 
-        return listOfNears.stream()
-                .map(pathStart -> coords.subList(pathStart, coords.size()))
-                .map(path -> Pair.of(path, Geo.distanceCoords(path.iterator())))
-                .filter(pair -> pair.getValue().isPresent())
-                .min(Comparator.comparingDouble(p -> p.getValue().get()))
-                .map(pair -> Geo.splitLineString(coords, pair.getKey()));
+        List<Point> pointsExpanded = coordsPoints.stream().map(coordPoint -> coordPoint.getKey()).collect(Collectors.toList());
+
+        return Pair.of(pointsExpanded, listOfNears);
+    }
+
+    public static Coordinate transform(Coordinate coordinate, CoordinateReferenceSystem source, CoordinateReferenceSystem target) {
+        try {
+            return JTS.transform(coordinate, new Coordinate(), getTransform(source, target));
+        } catch (TransformException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static CoordinateReferenceSystem buildCrs(int code) {
+        try {
+            return CRS.decode("EPSG:31983");
+        } catch (FactoryException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static MathTransform getTransform(CoordinateReferenceSystem source, CoordinateReferenceSystem target) {
+        try {
+            return CRS.findMathTransform(source, target, true);
+        } catch (FactoryException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Optional<CoordinateReferenceSystem> findCoordinateReferenceSystem(int sridCode) {
+        return Optional.ofNullable(SRID_MAP.get(sridCode));
     }
 
 }

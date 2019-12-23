@@ -12,12 +12,12 @@ import br.ucb.prevejo.previsao.operacao.OperacaoExecucaoService;
 import br.ucb.prevejo.previsao.operacao.veiculo.VeiculoInstanteSerializer;
 import br.ucb.prevejo.shared.intefaces.HttpClient;
 import br.ucb.prevejo.shared.intefaces.LocatedEntity;
-import br.ucb.prevejo.shared.util.DateAndTime;
 import br.ucb.prevejo.transporte.parada.Parada;
 import br.ucb.prevejo.transporte.parada.ParadaService;
 import br.ucb.prevejo.transporte.percurso.EnumSentido;
 import br.ucb.prevejo.transporte.percurso.Percurso;
 import br.ucb.prevejo.transporte.percurso.PercursoService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,8 +25,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -38,8 +36,11 @@ public class EstimativaService implements AppShutdownListener {
     private final OperacaoExecucaoService operacaoExecucaoService;
     private final EstimativaCache cache;
     private final HttpClient httpClient;
-    private final ObjectMapper mapper = buildMapper();
+    private final ObjectMapper serviceRequestMapper = buildServiceRequestMapper();
+    private final ObjectMapper responseMapper = buildResponseMapper();
 
+    @Value("${api.lambda.enabled}")
+    private Boolean useApiPrevisao;
     @Value("${api.lambda.previsao}")
     private String apiPrevisao;
 
@@ -53,59 +54,49 @@ public class EstimativaService implements AppShutdownListener {
         this.httpClient = httpClient;
     }
 
-    public EstimativaPercurso estimar(int percursoId, String codParada) {
+    public String estimar(int percursoId, String codParada) {
         return percursoService.obterPercursoFetchLinha(percursoId)
                 .flatMap(percurso -> paradaService.obterPorCodigo(codParada)
                         .map(parada -> estimar(percurso, parada))
                 ).orElse(null);
     }
 
-    public EstimativaPercurso estimar(String numLinha, EnumSentido sentidoLinha, String codParada) {
+    public String estimar(String numLinha, EnumSentido sentidoLinha, String codParada) {
         return percursoService.obterPercursoFetchLinha(numLinha, sentidoLinha)
                 .flatMap(percurso -> paradaService.obterPorCodigo(codParada)
                         .map(parada -> estimar(percurso, parada))
                 ).orElse(null);
     }
 
-    public String estimarFromService(String numLinha, EnumSentido sentidoLinha, String codParada) {
-        return percursoService.obterPercursoFetchLinha(numLinha, sentidoLinha)
-                .flatMap(percurso -> paradaService.obterPorCodigo(codParada)
-                        .map(parada -> estimarFromService(new EstimativaRequest(percurso, parada)))
-                ).orElse(null);
+    public String estimar(Percurso percurso, Parada paradaEmbarque) {
+        return estimar(new EstimativaRequest(percurso, paradaEmbarque));
     }
 
-    public String estimarFromService(EstimativaRequest estRequest) {
+    private String estimar(EstimativaRequest request) {
+        return Boolean.TRUE.equals(useApiPrevisao) ? estimarOnService(request) : estimarOnPremise(request);
+    }
+
+    private String estimarOnService(EstimativaRequest estimativaRequest) {
         ServiceRequest request = new ServiceRequest();
 
-        request.setNumero(estRequest.getPercurso().getLinha().getNumero());
-        request.setSentido(estRequest.getPercurso().getSentido().toString());
-        request.setParada(estRequest.getParadaEmbarque().getCod());
-        request.setVeiculos(operacaoExecucaoService.obterHistoricoCorrente(estRequest.getPercurso().toDTO()));
+        request.setNumero(estimativaRequest.getPercurso().getLinha().getNumero());
+        request.setSentido(estimativaRequest.getPercurso().getSentido().toString());
+        request.setParada(estimativaRequest.getParadaEmbarque().getCod());
+        request.setVeiculos(operacaoExecucaoService.obterHistoricoCorrente(estimativaRequest.getPercurso().toDTO()));
 
-        return estimar(request);
-    }
-
-    public String estimar(ServiceRequest request) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
         try {
-            mapper.writeValue(baos, request);
+            serviceRequestMapper.writeValue(baos, request);
         } catch (IOException e) { throw new RuntimeException(e); }
 
         return httpClient.post(str -> str, apiPrevisao, new String(baos.toByteArray()));
     }
 
-    public EstimativaPercurso estimar(Percurso percurso, Parada paradaEmbarque) {
-        LocalDateTime now = LocalDateTime.now();
-        try {
-            return estimar(new EstimativaRequest(percurso, paradaEmbarque));
-        } finally {
-            System.out.println("<-> Time: " + DateAndTime.timeBetween(now, LocalDateTime.now(), ChronoUnit.MILLIS));
-        }
-    }
-
-    private EstimativaPercurso estimar(EstimativaRequest request) {
-        Collection<? extends  LocatedEntity> veiculos = operacaoExecucaoService.obterHistoricoCorrente(request.getPercurso().toDTO());
+    private String estimarOnPremise(EstimativaRequest request) {
+        Collection<? extends  LocatedEntity> veiculos = operacaoExecucaoService.obterHistoricoCorrente(request.getPercurso().toDTO())
+                /*.stream().filter(v -> ((VeiculoInstante)v).getInstante().getVeiculo().getNumero().equals("440167"))
+                .collect(Collectors.toList())*/;
 
         /*veiculos = Arrays.asList(new LocatedEntity() {
             @Override
@@ -131,7 +122,17 @@ public class EstimativaService implements AppShutdownListener {
             return hp;
         });
 
-        return historicoOperacao.calcularEstimativa(request.getPercurso(), request.getParadaEmbarque(), veiculos);
+        EstimativaPercurso estimativaPercurso = historicoOperacao.calcularEstimativa(
+                request.getPercurso(),
+                request.getParadaEmbarque(),
+                veiculos
+        );
+
+        try {
+            return responseMapper.writeValueAsString(estimativaPercurso);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -139,9 +140,16 @@ public class EstimativaService implements AppShutdownListener {
         cache.stopRefreshWorkers();
     }
 
-    private static ObjectMapper buildMapper() {
+    private static ObjectMapper buildServiceRequestMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new SimpleModule().addSerializer(new VeiculoInstanteSerializer()));
+        mapper.registerModule(new SimpleModule().addSerializer(new GeometrySerializer()));
+        mapper.registerModule(new SimpleModule().addSerializer(new TimeSerializer()));
+        return mapper;
+    }
+
+    private static ObjectMapper buildResponseMapper() {
+        ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new SimpleModule().addSerializer(new GeometrySerializer()));
         mapper.registerModule(new SimpleModule().addSerializer(new TimeSerializer()));
         return mapper;

@@ -1,5 +1,6 @@
 package br.ucb.prevejo.previsao.instanteoperacao;
 
+import br.ucb.prevejo.core.resources.SqlResources;
 import br.ucb.prevejo.previsao.operacao.EnumOperadora;
 import br.ucb.prevejo.shared.model.Velocidade;
 import br.ucb.prevejo.shared.util.DateAndTime;
@@ -15,8 +16,6 @@ import org.locationtech.jts.io.WKBWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.PreparedStatementSetter;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -28,71 +27,6 @@ import java.util.stream.Collectors;
 @Repository
 public class InstanteOperacaoRepository {
 
-    private static final String TABLE_NAME = "transporte.tb_localizacao_veiculo";
-    //private static final String TABLE_NAME = "public.localizacao_tmp_teste";
-
-    private static final String SQL_INSERT = "insert into "+TABLE_NAME+"(" +
-                                                    "num_veiculo, " +
-                                                    "num_linha, " +
-                                                    "ds_sentido, " +
-                                                    "ds_operadora, " +
-                                                    "num_velocidade, " +
-                                                    "ds_velocidade, " +
-                                                    "num_direcao, " +
-                                                    "dt_localizacao, " +
-                                                    "geo" +
-                                                ")values(?, ?, ?, ?, ?, ?, ?, ?, ?::geometry)";
-
-    private static final String SQL_BY_LINHA = "SELECT num_veiculo as numero, " +
-                                                    "num_linha as linha, " +
-                                                    "ds_operadora as operadora, " +
-                                                    "dt_localizacao as data, " +
-                                                    "ds_sentido as sentido," +
-                                                    "num_direcao as direcao," +
-                                                    "num_velocidade  as velocidade," +
-                                                    "ds_velocidade as unit_velocidade," +
-                                                    "ST_AsBinary(geo) as localizacao " +
-                                                "FROM "+TABLE_NAME+" where num_linha = ? and " +
-                                                    "extract(isodow from dt_localizacao) in (:diasSemana)";
-
-    private static final String SQL_BY_LINHA_IN_RANGE = "SELECT num_veiculo as numero, " +
-            "num_linha as linha, " +
-            "ds_operadora as operadora, " +
-            "dt_localizacao as data, " +
-            "ds_sentido as sentido," +
-            "num_direcao as direcao," +
-            "num_velocidade  as velocidade," +
-            "ds_velocidade as unit_velocidade," +
-            "ST_AsBinary(geo) as localizacao " +
-            "FROM "+TABLE_NAME+" where num_linha = ? and " +
-                "cast (dt_localizacao as time) >= cast(to_timestamp(?, 'HH24:MI:SS') as time) and " +
-                "cast (dt_localizacao as time) <= cast(to_timestamp(?, 'HH24:MI:SS') as time)";
-
-    private static final String SQL_BY_LINHA_AND_SENTIDO = "SELECT num_veiculo as numero, " +
-                                                        "num_linha as linha, " +
-                                                        "ds_operadora as operadora, " +
-                                                        "dt_localizacao as data, " +
-                                                        "ds_sentido as sentido," +
-                                                        "num_direcao as direcao," +
-                                                        "num_velocidade  as velocidade," +
-                                                        "ds_velocidade as unit_velocidade," +
-                                                        "ST_AsBinary(geo) as localizacao " +
-                                                    "FROM "+TABLE_NAME+" where num_linha = ? and ds_sentido = ? and " +
-                                                        "extract(isodow from dt_localizacao) in (:diasSemana)";
-
-    private static final String SQL_BY_LINHA_AND_SENTIDO_IN_RANGE = "SELECT num_veiculo as numero, " +
-            "num_linha as linha, " +
-            "ds_operadora as operadora, " +
-            "dt_localizacao as data, " +
-            "ds_sentido as sentido," +
-            "num_direcao as direcao," +
-            "num_velocidade  as velocidade," +
-            "ds_velocidade as unit_velocidade," +
-            "ST_AsBinary(geo) as localizacao " +
-            "FROM "+TABLE_NAME+" where num_linha = ? and ds_sentido = ? and " +
-                "cast (dt_localizacao as time) >= cast(to_timestamp(?, 'HH24:MI:SS') as time) and " +
-                "cast (dt_localizacao as time) <= cast(to_timestamp(?, 'HH24:MI:SS') as time)";
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -101,7 +35,8 @@ public class InstanteOperacaoRepository {
 
 
     public List<InstanteOperacao> findAllByLinha(String linha, List<Integer> diasSemana) {
-        String sql = SQL_BY_LINHA.replace(":diasSemana", diasSemana.stream().map(ds -> "?").collect(Collectors.joining(",")));
+        String sql = SqlResources.find(SqlResources.SELECT_INSTANTE_OPERACAO_BY_LINHA)
+                .replace(":diasSemana", diasSemana.stream().map(ds -> "?").collect(Collectors.joining(",")));
 
         return jdbcTemplate.query(sql, (ps) -> {
             ps.setString(1, linha);
@@ -115,14 +50,15 @@ public class InstanteOperacaoRepository {
 
     public List<InstanteOperacao> findAllByLinhaInRange(String linha, LocalTime startTime, LocalTime endTime) {
         return jdbcTemplate.query(
-                SQL_BY_LINHA_IN_RANGE,
+                SqlResources.find(SqlResources.SELECT_INSTANTE_OPERACAO_BY_LINHA_IN_RANGE),
                 new Object[]{ linha, DateAndTime.toString(startTime, "HH:mm:ss"), DateAndTime.toString(endTime, "HH:mm:ss") },
                 (rs, i) -> parse(rs)
         );
     }
 
     public List<InstanteOperacao> findAllByLinhaAndSentido(String linha, EnumSentido sentido, List<Integer> diasSemana) {
-        String sql = SQL_BY_LINHA_AND_SENTIDO.replace(":diasSemana", diasSemana.stream().map(ds -> "?").collect(Collectors.joining(",")));
+        String sql = SqlResources.find(SqlResources.SELECT_INSTANTE_OPERACAO_BY_LINHA_AND_SENTIDO)
+                .replace(":diasSemana", diasSemana.stream().map(ds -> "?").collect(Collectors.joining(",")));
         return jdbcTemplate.query(sql, (ps) -> {
             ps.setString(1, linha);
             ps.setString(2, sentido.toString());
@@ -136,14 +72,14 @@ public class InstanteOperacaoRepository {
 
     public List<InstanteOperacao> findAllByLinhaAndSentidoInRange(String linha, EnumSentido sentido, LocalTime startTime, LocalTime endTime) {
         return jdbcTemplate.query(
-                SQL_BY_LINHA_AND_SENTIDO_IN_RANGE,
+                SqlResources.find(SqlResources.SELECT_INSTANTE_OPERACAO_BY_LINHA_AND_SENTIDO_IN_RANGE),
                 new Object[]{ linha, sentido.toString(), DateAndTime.toString(startTime, "HH:mm:ss"), DateAndTime.toString(endTime, "HH:mm:ss") },
                 (rs, i) -> parse(rs)
         );
     }
 
     public void batchInsert(List<InstanteOperacao> instantes) {
-        jdbcTemplate.batchUpdate(SQL_INSERT, new BatchPreparedStatementSetter() {
+        jdbcTemplate.batchUpdate(SqlResources.find(SqlResources.INSERT_INSTANTE_OPERACAO), new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
                 InstanteOperacao instante = instantes.get(i);

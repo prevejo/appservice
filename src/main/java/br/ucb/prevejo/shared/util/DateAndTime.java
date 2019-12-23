@@ -64,6 +64,24 @@ public class DateAndTime {
         ).collect(Collectors.toList());
     }
 
+    public static LocalDateTime middleTime(LocalDateTime startTime, LocalDateTime endTime, double fraction) {
+        if (fraction < 0 || fraction > 1) {
+            throw new IllegalArgumentException("Fraction not between 0 and 1");
+        }
+
+        long timeBetween = timeBetween(startTime, endTime, ChronoUnit.MILLIS);
+
+        long middle = (long) (timeBetween * fraction);
+
+        if (middle == 0) {
+            return startTime;
+        } else if (middle == timeBetween) {
+            return endTime;
+        }
+
+        return startTime.plus(middle, ChronoUnit.MILLIS);
+    }
+
     public static String toString(TemporalAccessor time, String format) {
         return buildFormater(format).format(time);
     }

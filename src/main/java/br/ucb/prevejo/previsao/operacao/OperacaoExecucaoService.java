@@ -6,6 +6,7 @@ import br.ucb.prevejo.core.cache.CacheContent;
 import br.ucb.prevejo.core.cache.CacheProvider;
 import br.ucb.prevejo.core.cache.PassiveCacheProvider;
 import br.ucb.prevejo.core.resources.WebServiceResources;
+import br.ucb.prevejo.shared.model.LineStringSpliter;
 import br.ucb.prevejo.previsao.instanteoperacao.InstanteOperacao;
 import br.ucb.prevejo.previsao.instanteoperacao.InstanteOperacaoService;
 import br.ucb.prevejo.previsao.operacao.veiculo.VeiculoOperacao;
@@ -13,7 +14,6 @@ import br.ucb.prevejo.previsao.operacao.veiculo.VeiculosMap;
 import br.ucb.prevejo.previsao.instanteoperacao.parser.OperadoraParser;
 import br.ucb.prevejo.previsao.operacao.register.OperacaoRegister;
 import br.ucb.prevejo.shared.intefaces.LocatedEntity;
-import br.ucb.prevejo.shared.util.Geo;
 import br.ucb.prevejo.transporte.percurso.Percurso;
 import br.ucb.prevejo.transporte.percurso.PercursoDTO;
 import br.ucb.prevejo.transporte.percurso.PercursoService;
@@ -91,7 +91,7 @@ public class OperacaoExecucaoService implements AppShutdownListener {
                 .filter(h -> h.getInstanteOperacaoCurrent().getInstante().isBehind(Duration.of(MAX_VEICULO_PAST_MINUTES, ChronoUnit.MINUTES)))
                 .map(h ->VeiculoOperacao.build(
                         h.getInstanteOperacaoCurrent(),
-                        Geo.splitLineString(h.toLocatedEntity(), percurso.getGeo(), MAX_VEICULO_DISTANCE_TO_PERCURSO).orElse(null)
+                        LineStringSpliter.of(percurso.getGeo()).split(h.toLocatedEntity(), MAX_VEICULO_DISTANCE_TO_PERCURSO).orElse(null)
                 )).collect(Collectors.toList());
     }
 

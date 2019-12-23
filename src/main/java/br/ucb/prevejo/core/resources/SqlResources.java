@@ -13,6 +13,11 @@ public class SqlResources {
     private static final String PARENT_PATH = "sql";
     public static final String PARADAS_BY_DISTANCIA = "paradasByDistancia.sql";
     public static final String PARADAS_IN_RANGE = "paradasInRange.sql";
+    public static final String INSERT_INSTANTE_OPERACAO = "insertInstanteOperacao.sql";
+    public static final String SELECT_INSTANTE_OPERACAO_BY_LINHA = "selectInstanteOperacaoByLinha.sql";
+    public static final String SELECT_INSTANTE_OPERACAO_BY_LINHA_IN_RANGE = "selectInstanteOperacaoByLinhaInRange.sql";
+    public static final String SELECT_INSTANTE_OPERACAO_BY_LINHA_AND_SENTIDO = "selectInstanteOperacaoByLinhaAndSentido.sql";
+    public static final String SELECT_INSTANTE_OPERACAO_BY_LINHA_AND_SENTIDO_IN_RANGE = "selectInstanteOperacaoByLinhaAndSentidoInRange.sql";
     private static Set<String> envs;
 
     public static String find(String sqlName) {

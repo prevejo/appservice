@@ -26,17 +26,12 @@ public class EstimativaController {
 
     @RequestMapping(method = RequestMethod.GET, value = "/percurso/{numLinha:.+}/{sentido}/{codParada}", produces = MediaType.APPLICATION_JSON_VALUE)
     public String estimativaByLinha(@PathVariable String numLinha, @PathVariable EnumSentido sentido, @PathVariable String codParada) {
-        return service.estimarFromService(numLinha, sentido, codParada);
+        return service.estimar(numLinha, sentido, codParada);
     }
 
-    /*@RequestMapping(method = RequestMethod.GET, value = "/percurso/{numLinha:.+}/{sentido}/{codParada}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<EstimativaPercurso> estimativaByLinha(@PathVariable String numLinha, @PathVariable EnumSentido sentido, @PathVariable String codParada) {
-        return new ResponseEntity<>(service.estimar(numLinha, sentido, codParada), HttpStatus.OK);
-    }*/
-
     @RequestMapping(method = RequestMethod.GET, value = "/percurso/{percursoId}/{codParada}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<EstimativaPercurso> estimativaByLinha(@PathVariable Integer percursoId, @PathVariable String codParada) {
-        return new ResponseEntity<>(service.estimar(percursoId, codParada), HttpStatus.OK);
+    public String estimativaByLinha(@PathVariable Integer percursoId, @PathVariable String codParada) {
+        return service.estimar(percursoId, codParada);
     }
 
 }
