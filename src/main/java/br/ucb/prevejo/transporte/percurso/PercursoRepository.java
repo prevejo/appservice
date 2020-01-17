@@ -29,6 +29,10 @@ public interface PercursoRepository extends JpaRepository<Percurso, Integer>, Jp
             "WHERE p in (select pp.percurso from PercursoParada pp where pp.parada = :parada)")
     List<PercursoDTO> findAllByParada(@Param("parada") Parada parada);
 
+    @Query(value = "SELECT p.id as id, p.sentido as sentido, p.linha as linha, p.origem as origem, p.destino as destino FROM Percurso p " +
+            "WHERE UPPER(p.linha.descricao) LIKE CONCAT('%', CONCAT(UPPER(:desc), '%')) OR p.linha.numero LIKE CONCAT('%', CONCAT(:desc, '%')) ")
+    List<PercursoDTO> findAllByDescricao(@Param("desc") String descricao);
+
     @Query(value = "SELECT p FROM Percurso p WHERE p.linha.numero = :numLinha and p.sentido = :sentido")
     Optional<Percurso> findPercursoByLinhaAndSentido(@Param("numLinha") String numLinha, @Param("sentido") EnumSentido sentido);
 

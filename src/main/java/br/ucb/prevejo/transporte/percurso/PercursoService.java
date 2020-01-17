@@ -75,6 +75,10 @@ public class PercursoService {
         return repository.findByIdIn(ids);
     }
 
+    public Collection<PercursoDTO> obterPercursosByDescricao(String descricao) {
+        return repository.findAllByDescricao(descricao);
+    }
+
     public Collection<PercursoDTO> obterPercursos(Parada parada) {
         return repository.findAllByParada(parada);
     }
@@ -101,15 +105,15 @@ public class PercursoService {
 
     public FeatureCollection obterLinhaCollectionByPercursoId(int percursoId) {
         return FeatureCollection.build(
-            obterLinhaPercursosByPercursoId(percursoId),
-            p -> p.getGeo(),
-            p -> new HashMap<String, Object>() {{
-                put("id", p.getId());
-                put("origem", p.getOrigem());
-                put("destino", p.getDestino());
-                put("sentido", p.getSentido());
-                put("linha", p.getLinha());
-            }}
+                obterLinhaPercursosByPercursoId(percursoId),
+                p -> p.getGeo(),
+                p -> new HashMap<String, Object>() {{
+                    put("id", p.getId());
+                    put("origem", p.getOrigem());
+                    put("destino", p.getDestino());
+                    put("sentido", p.getSentido());
+                    put("linha", p.getLinha());
+                }}
         );
     }
 

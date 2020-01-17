@@ -25,6 +25,12 @@ public class PercursoController {
         this.paradaService = paradaService;
     }
 
+    @RequestMapping(method = RequestMethod.GET, path = "/search/{desc:.+}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Collection<PercursoDTO>> obterByDescricao(@PathVariable String desc) {
+        desc = desc.replace("&#47;", "/");
+        return new ResponseEntity<>(service.obterPercursosByDescricao(desc), HttpStatus.OK);
+    }
+
     @RequestMapping(method = RequestMethod.GET, path = "/feature/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Feature> obterPercursoById(@PathVariable("id") Integer id) {
         return new ResponseEntity<>(service.obterFeature(id), HttpStatus.OK);
