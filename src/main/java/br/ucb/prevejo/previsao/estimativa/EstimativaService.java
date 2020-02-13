@@ -12,6 +12,7 @@ import br.ucb.prevejo.previsao.operacao.OperacaoExecucaoService;
 import br.ucb.prevejo.previsao.operacao.veiculo.VeiculoInstanteSerializer;
 import br.ucb.prevejo.shared.intefaces.HttpClient;
 import br.ucb.prevejo.shared.intefaces.LocatedEntity;
+import br.ucb.prevejo.shared.serializer.PercursoServiceRequestSerializer;
 import br.ucb.prevejo.transporte.parada.Parada;
 import br.ucb.prevejo.transporte.parada.ParadaService;
 import br.ucb.prevejo.transporte.percurso.EnumSentido;
@@ -79,9 +80,8 @@ public class EstimativaService implements AppShutdownListener {
     private String estimarOnService(EstimativaRequest estimativaRequest) {
         ServiceRequest request = new ServiceRequest();
 
-        request.setNumero(estimativaRequest.getPercurso().getLinha().getNumero());
-        request.setSentido(estimativaRequest.getPercurso().getSentido().toString());
-        request.setParada(estimativaRequest.getParadaEmbarque().getCod());
+        request.setPercurso(estimativaRequest.getPercurso());
+        request.setParada(estimativaRequest.getParadaEmbarque());
         request.setVeiculos(operacaoExecucaoService.obterHistoricoCorrente(estimativaRequest.getPercurso().toDTO()));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -145,6 +145,7 @@ public class EstimativaService implements AppShutdownListener {
         mapper.registerModule(new SimpleModule().addSerializer(new VeiculoInstanteSerializer()));
         mapper.registerModule(new SimpleModule().addSerializer(new GeometrySerializer()));
         mapper.registerModule(new SimpleModule().addSerializer(new TimeSerializer()));
+        mapper.registerModule(new SimpleModule().addSerializer(new PercursoServiceRequestSerializer()));
         return mapper;
     }
 

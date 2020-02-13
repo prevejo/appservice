@@ -13,6 +13,23 @@ import java.util.stream.Stream;
 
 public class Collections {
 
+    public static <T> Collection<List<T>> split(List<T> list, int splitLength) {
+        int current = 0;
+        List<List<T>> splits = new ArrayList<>();
+
+        while (list.size() - current >= splitLength) {
+            splits.add(list.subList(current, current + splitLength));
+
+            current += splitLength;
+        }
+
+        if (list.size() - current > 0) {
+            splits.add(list.subList(current, list.size()));
+        }
+
+        return splits;
+    }
+
     public static <T> Iterator<T> unmodifiableIterator(Iterator<T> iterator) {
         return new UnmodifiableIterator<>(iterator);
     }
@@ -61,7 +78,7 @@ public class Collections {
         return Optional.ofNullable(elementToReturn);
     }
 
-        public static <T, R> Iterator<R> mapIterator(Iterator<T> iterator, Function<T, R> mapFunction) {
+    public static <T, R> Iterator<R> mapIterator(Iterator<T> iterator, Function<T, R> mapFunction) {
         return new IteratorMap(iterator, mapFunction);
     }
 

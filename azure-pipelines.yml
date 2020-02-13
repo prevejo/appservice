@@ -4,42 +4,42 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/java
 
 trigger:
-- master
+  - master
 
 pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- task: ExtractFiles@1
-  inputs:
-    archiveFilePatterns: '$(Build.SourcesDirectory)/src/main/resources/data-h2.7z'
-    destinationFolder: '$(Build.SourcesDirectory)/src/main/resources/'
-    cleanDestinationFolder: false
-- task: Maven@3
-  inputs:
-    mavenPomFile: 'pom.xml'
-    goals: 'clean'
-    publishJUnitResults: false
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.8'
-    jdkArchitectureOption: 'x64'
-- task: Maven@3
-  inputs:
-    Options: '-Dspring.profiles.active=prod'
-    mavenPomFile: 'pom.xml'
-    mavenOptions: '-Xmx3072m'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.8'
-    jdkArchitectureOption: 'x64'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    goals: 'package'
-- task: PublishBuildArtifacts@1
-  inputs:
-    PathtoPublish: '$(Build.SourcesDirectory)/target/app.jar'
-    ArtifactName: 'drop-build'
-- task: PublishBuildArtifacts@1
-  inputs:
-    PathtoPublish: '$(Build.SourcesDirectory)/Dockerfile'
-    ArtifactName: 'drop-docker'
+  - task: ExtractFiles@1
+    inputs:
+      archiveFilePatterns: '$(Build.SourcesDirectory)/src/main/resources/data-h2.7z'
+      destinationFolder: '$(Build.SourcesDirectory)/src/main/resources/'
+      cleanDestinationFolder: false
+  - task: Maven@3
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean'
+      publishJUnitResults: false
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      jdkArchitectureOption: 'x64'
+  - task: Maven@3
+    inputs:
+      Options: '-Dspring.profiles.active=prodmem'
+      mavenPomFile: 'pom.xml'
+      mavenOptions: '-Xmx3072m'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      goals: 'package'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.SourcesDirectory)/target/app.jar'
+      ArtifactName: 'drop-build'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.SourcesDirectory)/Dockerfile'
+      ArtifactName: 'drop-docker'

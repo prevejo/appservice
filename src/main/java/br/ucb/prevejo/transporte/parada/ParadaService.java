@@ -22,6 +22,10 @@ public class ParadaService implements ParadaFetch {
         this.cacheService = cacheService;
     }
 
+    public Collection<Parada> obterParadas() {
+        return repository.findAll();
+    }
+
     public FeatureCollection obterFeatureCollection() {
         return toFeatureCollection(repository.findAll());
     }
