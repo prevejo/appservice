@@ -42,8 +42,6 @@ public class OperacaoRegister {
         registerLock.lock();
 
         try {
-            operacoes = filterRecentes(filterEmOperacao(operacoes));
-
             List<InstanteOperacao> instantes = filterRecentes(filterEmOperacao(operacoes)).stream()
                     .flatMap(op -> op.getVeiculos().stream())
                     .flatMap(instante -> getQueue(instante.getVeiculo()).pushAndPull(instante).stream())
