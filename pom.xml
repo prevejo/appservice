@@ -28,6 +28,10 @@
 			<id>2_mvn-icm</id>
 			<url>http://maven.icm.edu.pl/artifactory/repo/</url>
 		</repository>
+		<repository>
+			<id>3_mvn-icm</id>
+			<url>https://repo.osgeo.org/repository/release/</url>
+		</repository>
 	</repositories>
 
 	<dependencies>
